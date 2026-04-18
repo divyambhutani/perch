@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-14
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SwiftPM artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+
+      - name: Swift version
+        run: swift --version
+
+      - name: SwiftPM build + test
+        run: swift test --parallel
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Xcode build + test
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Perch.xcodeproj \
+            -scheme Perch \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -skipPackagePluginValidation \
+            test | xcbeautify --renderer github-actions || xcodebuild \
+            -project Perch.xcodeproj \
+            -scheme Perch \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -skipPackagePluginValidation \
+            test

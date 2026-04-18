@@ -1,0 +1,39 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserdata
+*.xcworkspace
+xcuserdata/
+*.xcscmblueprint
+
+# SwiftPM
+.build/
+.swiftpm/xcode/
+Package.resolved
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# IDE
+.vscode/
+.cursor/
+
+# Claude Code
+.claude/
+
+# App artifacts
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.app
+
+# Signing
+*.p12
+*.mobileprovision
+*.provisionprofile
+
+# Sparkle
+*.dmg
+*.zip

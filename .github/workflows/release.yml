@@ -1,0 +1,11 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./Support/scripts/release.sh

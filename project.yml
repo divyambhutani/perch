@@ -1,0 +1,56 @@
+name: Perch
+options:
+  deploymentTarget:
+    macOS: "14.0"
+configs:
+  Debug: debug
+  Release: release
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.perch.app
+    SWIFT_VERSION: 6.0
+    SWIFT_STRICT_CONCURRENCY: complete
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift.git
+    from: 7.0.0
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle.git
+    from: 2.7.1
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts.git
+    from: 2.4.0
+targets:
+  Perch:
+    type: application
+    platform: macOS
+    sources:
+      - Perch
+      - Support
+    dependencies:
+      - package: GRDB
+        product: GRDB
+      - package: Sparkle
+        product: Sparkle
+      - package: KeyboardShortcuts
+        product: KeyboardShortcuts
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSMinimumSystemVersion: "14.0"
+        CODE_SIGN_ENTITLEMENTS: Support/Entitlements/Perch.entitlements
+        PRODUCT_NAME: Perch
+  CoreTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/CoreTests
+    dependencies:
+      - target: Perch
+  FeaturesTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/FeaturesTests
+    dependencies:
+      - target: Perch
