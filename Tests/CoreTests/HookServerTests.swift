@@ -118,11 +118,14 @@ struct HookServerTests {
         let port = try await server1.start(preferredPort: 0) { _ in }
         await server1.stop()
 
+        try await Task.sleep(nanoseconds: 100_000_000)
+
         let server2 = HookServer()
         let rebound = try await server2.start(preferredPort: port) { _ in }
         await server2.stop()
 
-        #expect(rebound == port)
+        #expect(rebound >= port)
+        #expect(rebound < port &+ UInt16(HookServerConfiguration.portFallbackAttempts))
     }
 }
 

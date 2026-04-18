@@ -6,6 +6,7 @@ actor HookConnection {
     private let parser: HookRequestParser
     private let router: HookRouter
     private let onEvent: @Sendable (HookEvent) async -> Void
+    private let onComplete: @Sendable (HookConnection) async -> Void
     private var buffer = Data()
     private static let maxBufferBytes = HookRequestParser.maxBodyBytes + 32_768
 
@@ -13,29 +14,39 @@ actor HookConnection {
         connection: NWConnection,
         parser: HookRequestParser,
         router: HookRouter,
-        onEvent: @escaping @Sendable (HookEvent) async -> Void
+        onEvent: @escaping @Sendable (HookEvent) async -> Void,
+        onComplete: @escaping @Sendable (HookConnection) async -> Void
     ) {
         self.connection = connection
         self.parser = parser
         self.router = router
         self.onEvent = onEvent
+        self.onComplete = onComplete
     }
 
     func begin() {
+        connection.stateUpdateHandler = { [self] state in
+            switch state {
+            case .ready:
+                Task { await self.receiveNext() }
+            case .failed, .cancelled:
+                Task { await self.finish() }
+            default:
+                break
+            }
+        }
         connection.start(queue: .global(qos: .userInitiated))
-        receiveNext()
     }
 
     private func receiveNext() {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self] data, _, isComplete, error in
-            guard let self else { return }
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [self] data, _, isComplete, error in
             Task { await self.handle(data: data, isComplete: isComplete, error: error) }
         }
     }
 
     private func handle(data: Data?, isComplete: Bool, error: NWError?) async {
         if error != nil {
-            cancel()
+            await finish()
             return
         }
         if let data {
@@ -87,10 +98,11 @@ actor HookConnection {
                 continuation.resume()
             })
         }
-        cancel()
+        await finish()
     }
 
-    private func cancel() {
+    private func finish() async {
         connection.cancel()
+        await onComplete(self)
     }
 }

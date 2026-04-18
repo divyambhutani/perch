@@ -5,6 +5,7 @@ actor HookServer {
     private let parser = HookRequestParser()
     private let router = HookRouter()
     private var listener: NWListener?
+    private var activeConnections: [ObjectIdentifier: HookConnection] = [:]
     private(set) var boundPort: UInt16?
 
     @discardableResult
@@ -24,19 +25,48 @@ actor HookServer {
                 let listener = try NWListener(using: .tcp, on: endpoint)
                 let parser = parser
                 let router = router
-                listener.newConnectionHandler = { connection in
-                    let peer = HookConnection(
-                        connection: connection,
-                        parser: parser,
-                        router: router,
-                        onEvent: handler
-                    )
-                    Task { await peer.begin() }
+                listener.newConnectionHandler = { [weak self] connection in
+                    guard let self else { return }
+                    Task {
+                        let peer = HookConnection(
+                            connection: connection,
+                            parser: parser,
+                            router: router,
+                            onEvent: handler,
+                            onComplete: { [weak self] conn in
+                                await self?.removeConnection(conn)
+                            }
+                        )
+                        await self.trackConnection(peer)
+                        await peer.begin()
+                    }
                 }
-                listener.start(queue: .global(qos: .userInitiated))
+
+                let actualPort = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<UInt16, Error>) in
+                    nonisolated(unsafe) var resumed = false
+                    listener.stateUpdateHandler = { state in
+                        guard !resumed else { return }
+                        switch state {
+                        case .ready:
+                            resumed = true
+                            let port = listener.port?.rawValue ?? candidate
+                            continuation.resume(returning: port)
+                        case .failed(let error):
+                            resumed = true
+                            continuation.resume(throwing: error)
+                        case .cancelled:
+                            resumed = true
+                            continuation.resume(throwing: HookServerError.bindFailed("listener cancelled"))
+                        default:
+                            break
+                        }
+                    }
+                    listener.start(queue: .global(qos: .userInitiated))
+                }
+
                 self.listener = listener
-                self.boundPort = candidate
-                return candidate
+                self.boundPort = actualPort
+                return actualPort
             } catch {
                 lastError = error
                 continue
@@ -48,7 +78,16 @@ actor HookServer {
     func stop() {
         listener?.cancel()
         listener = nil
+        activeConnections.removeAll()
         boundPort = nil
+    }
+
+    private func trackConnection(_ conn: HookConnection) {
+        activeConnections[ObjectIdentifier(conn)] = conn
+    }
+
+    private func removeConnection(_ conn: HookConnection) {
+        activeConnections.removeValue(forKey: ObjectIdentifier(conn))
     }
 
     func ingest(data: Data) throws -> HookEvent {
