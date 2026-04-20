@@ -1,1 +1,3 @@
+#include "Version.xcconfig"
+
 SWIFT_STRICT_CONCURRENCY = complete

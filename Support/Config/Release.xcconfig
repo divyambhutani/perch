@@ -1,1 +1,15 @@
+#include "Version.xcconfig"
+
 SWIFT_STRICT_CONCURRENCY = complete
+
+// Sparkle configuration - overridden by CI before signing.
+SU_FEED_URL = https://divyambhutani40.github.io/perch/appcast.xml
+SU_PUBLIC_ED_KEY =
+
+INFOPLIST_KEY_SUFeedURL = $(SU_FEED_URL)
+INFOPLIST_KEY_SUPublicEDKey = $(SU_PUBLIC_ED_KEY)
+
+CODE_SIGN_STYLE = Manual
+DEVELOPMENT_TEAM =
+OTHER_CODE_SIGN_FLAGS = --timestamp --options runtime
+ENABLE_HARDENED_RUNTIME = YES
