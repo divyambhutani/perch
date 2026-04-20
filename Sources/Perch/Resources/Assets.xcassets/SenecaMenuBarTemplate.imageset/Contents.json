@@ -1,0 +1,8 @@
+{
+  "images" : [
+    { "idiom" : "mac", "scale" : "1x", "filename" : "SenecaMenuBarTemplate.png" },
+    { "idiom" : "mac", "scale" : "2x", "filename" : "SenecaMenuBarTemplate@2x.png" }
+  ],
+  "info" : { "version" : 1, "author" : "xcode" },
+  "properties" : { "template-rendering-intent" : "template" }
+}
