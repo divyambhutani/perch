@@ -26,4 +26,6 @@ Contributions welcome! Check [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 Apache 2.0
 
-![Seneca Reference](Resources/Mascots/Seneca/seneca-reference.png)
+<p align="center">
+  <img src="Resources/Mascots/Seneca/seneca-reference.png" alt="Seneca Reference" width="300">
+</p>
