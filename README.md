@@ -27,5 +27,3 @@ Contributions welcome! Check [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 Apache 2.0
 
 ![Seneca Reference](Resources/Mascots/Seneca/seneca-reference.png)
-
-.(png file must actually exist in this path for the image to display)
