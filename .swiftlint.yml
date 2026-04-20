@@ -1,0 +1,57 @@
+included:
+  - Perch
+  - Tests
+
+excluded:
+  - .build
+  - build
+  - Support/scripts
+  - Perch.xcodeproj
+
+disabled_rules:
+  - todo
+  - line_length          # UI code often has long composed expressions
+  - nesting              # SwiftUI requires nested types
+  - identifier_name      # Pixel shorthand `r/g/b` and `x/y` are idiomatic here
+
+opt_in_rules:
+  - closure_spacing
+  - contains_over_first_not_nil
+  - empty_count
+  - empty_string
+  - explicit_init
+  - fatal_error_message
+  - first_where
+  - force_unwrapping
+  - last_where
+  - redundant_nil_coalescing
+  - sorted_first_last
+  - toggle_bool
+  - unused_import
+
+analyzer_rules:
+  - unused_declaration
+  - unused_import
+
+force_cast: warning
+force_try: warning
+force_unwrapping: warning
+
+type_body_length:
+  warning: 400
+  error: 600
+
+file_length:
+  warning: 500
+  error: 800
+  ignore_comment_only_lines: true
+
+function_body_length:
+  warning: 60
+  error: 120
+
+cyclomatic_complexity:
+  warning: 15
+  error: 25
+
+reporter: "xcode"
