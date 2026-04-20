@@ -37,3 +37,7 @@ Package.resolved
 # Sparkle
 *.dmg
 *.zip
+
+# Tool output
+graphify-out/
+screenshots/
