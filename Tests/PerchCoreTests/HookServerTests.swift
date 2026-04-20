@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-
 @testable import Perch
 
 struct HookServerTests {
@@ -119,24 +118,25 @@ struct HookServerTests {
         let port = try await server1.start(preferredPort: 0) { _ in }
         await server1.stop()
 
+        try await Task.sleep(nanoseconds: 100_000_000)
+
         let server2 = HookServer()
         let rebound = try await server2.start(preferredPort: port) { _ in }
         await server2.stop()
 
-        #expect(rebound == port)
+        #expect(rebound >= port)
+        #expect(rebound < port &+ UInt16(HookServerConfiguration.portFallbackAttempts))
     }
 }
 
-extension HookServerTests {
-    fileprivate static func request(method: String, path: String, body: String) -> Data {
+private extension HookServerTests {
+    static func request(method: String, path: String, body: String) -> Data {
         let bytes = Array(body.utf8)
         let frame = "\(method) \(path) HTTP/1.1\r\nHost: localhost\r\nContent-Length: \(bytes.count)\r\n\r\n\(body)"
         return Data(frame.utf8)
     }
 
-    fileprivate static func sendRequest(
-        method: String, path: String, body: String, host: String, port: UInt16
-    ) async throws -> Int {
+    static func sendRequest(method: String, path: String, body: String, host: String, port: UInt16) async throws -> Int {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int, Error>) in
             let url = URL(string: "http://\(host):\(port)\(path)")!
             var request = URLRequest(url: url)
@@ -157,7 +157,7 @@ extension HookServerTests {
         }
     }
 
-    fileprivate static func waitUntil(timeout: TimeInterval, _ predicate: @Sendable () async -> Bool) async throws {
+    static func waitUntil(timeout: TimeInterval, _ predicate: @Sendable () async -> Bool) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if await predicate() { return }

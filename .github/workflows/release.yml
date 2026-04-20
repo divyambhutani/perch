@@ -2,10 +2,113 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish DMG + appcast to GitHub (tag + gh-pages)"
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
 
 jobs:
   package:
     runs-on: macos-14
+    env:
+      PERCH_SIGNING_IDENTITY: ${{ secrets.PERCH_SIGNING_IDENTITY }}
+      PERCH_NOTARY_PROFILE: perch-notary
     steps:
       - uses: actions/checkout@v4
-      - run: ./Support/scripts/release.sh
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "15.4"
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Import Developer ID certificate
+        env:
+          CERT_P12: ${{ secrets.APPLE_DEV_ID_APP_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_DEV_ID_APP_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN=build.keychain
+          KEYCHAIN_PWD=$(uuidgen)
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain
+          printf '%s' "$CERT_P12" | base64 --decode > /tmp/cert.p12
+          security import /tmp/cert.p12 -k "$KEYCHAIN" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN"
+          rm -f /tmp/cert.p12
+
+      - name: Store notarytool credentials
+        env:
+          KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPLE_NOTARY_KEY_ISSUER }}
+          KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$KEY_P8" | base64 --decode > /tmp/notary.p8
+          xcrun notarytool store-credentials "$PERCH_NOTARY_PROFILE" \
+            --key /tmp/notary.p8 \
+            --key-id "$KEY_ID" \
+            --issuer "$ISSUER_ID"
+          rm -f /tmp/notary.p8
+
+      - name: Stage Sparkle signing key
+        env:
+          ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$ED_KEY" ]]; then
+            printf '%s' "$ED_KEY" > /tmp/sparkle_ed_key
+            echo "SPARKLE_ED_PRIVATE_KEY_FILE=/tmp/sparkle_ed_key" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build + sign + notarize + appcast
+        run: ./Support/scripts/release.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: perch-dmg
+          path: build/Perch-*.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: perch-appcast
+          path: build/appcast/appcast.xml
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION=$(awk -F' *= *' '/^MARKETING_VERSION/{print $2}' Support/Config/Version.xcconfig | tr -d '[:space:]')
+          TAG="${GITHUB_REF_NAME:-v$VERSION}"
+          gh release create "$TAG" \
+            --title "Perch $VERSION" \
+            --notes "Perch $VERSION" \
+            build/Perch-*.dmg \
+            build/appcast/appcast.xml \
+          || gh release upload "$TAG" \
+            build/Perch-*.dmg \
+            build/appcast/appcast.xml \
+            --clobber
+
+      - name: Publish appcast to gh-pages
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages:gh-pages || git branch gh-pages
+          WORKTREE=$(mktemp -d)
+          git worktree add "$WORKTREE" gh-pages
+          cp build/appcast/appcast.xml "$WORKTREE/appcast.xml"
+          cp build/Perch-*.dmg "$WORKTREE/"
+          cd "$WORKTREE"
+          git add appcast.xml Perch-*.dmg
+          git -c user.name="perch-release" -c user.email="release@perch.app" commit -m "release: Perch $(basename build/Perch-*.dmg .dmg | cut -d- -f2)" || true
+          git push origin gh-pages
